@@ -31,14 +31,18 @@ logger = logging.getLogger("incident-platform")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Startup / shutdown lifecycle.
-
-    Phase 2: MCP server processes will be started here.
-    Phase 4: Database connections will be initialized here.
-    """
+    """Startup / shutdown lifecycle."""
     logger.info("🚀 AI Incident Response Platform starting up...")
     logger.info(f"   Environment: {settings.app_env}")
     logger.info(f"   Debug mode:  {settings.app_debug}")
+    
+    # Initialize DB
+    from app.db.engine import init_db
+    try:
+        await init_db()
+    except Exception as e:
+        logger.warning(f"DB init warning: {e}")
+
     yield
     logger.info("🛑 AI Incident Response Platform shutting down...")
 

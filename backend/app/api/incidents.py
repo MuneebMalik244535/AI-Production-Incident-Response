@@ -70,6 +70,16 @@ async def create_incident(
 
     _incidents[incident_id] = incident
 
+    # Persist initial incident to DB
+    try:
+        from app.db.engine import AsyncSessionLocal
+        from app.db.repositories import IncidentRepository
+        async with AsyncSessionLocal() as session:
+            repo = IncidentRepository(session)
+            await repo.create_incident(incident)
+    except Exception as e:
+        pass
+
     # Trigger investigation in background (non-blocking)
     background_tasks.add_task(_trigger_investigation, incident_id)
 

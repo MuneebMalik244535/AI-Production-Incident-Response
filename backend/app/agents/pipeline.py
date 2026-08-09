@@ -185,6 +185,17 @@ async def execute_investigation_pipeline(incident: IncidentResponse) -> Incident
 
     dur_total = time.perf_counter() - start_total
     incident.status = IncidentStatus.AWAITING_APPROVAL
+
+    # Persist to DB if session available
+    try:
+        from app.db.engine import AsyncSessionLocal
+        from app.db.repositories import IncidentRepository
+        async with AsyncSessionLocal() as session:
+            repo = IncidentRepository(session)
+            await repo.save_investigation_results(incident)
+    except Exception as e:
+        logger.debug(f"DB persistence note: {e}")
+
     logger.info(f"✅ Pipeline completed for Incident {incident.id} in {dur_total:.2f}s — AWAITING_APPROVAL")
 
     return incident
