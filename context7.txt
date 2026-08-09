@@ -1,0 +1,2 @@
+CONTEXT7_OPENAI_AGENTS_SDK=https://context7.com/openai/openai-agents-python/llms.txt?tokens=10000
+CONTEXT7_MCP=
