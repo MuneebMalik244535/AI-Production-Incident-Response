@@ -148,7 +148,38 @@ async def approve_incident(
         )
 
     incident.status = IncidentStatus.APPROVED
-    # Phase 6: trigger GitHub PR creation / Slack notification here
+
+    # Record approval in DB if available
+    try:
+        from app.db.engine import AsyncSessionLocal
+        from app.db.repositories import ApprovalRepository, IncidentRepository
+        async with AsyncSessionLocal() as session:
+            inc_repo = IncidentRepository(session)
+            app_repo = ApprovalRepository(session)
+            await inc_repo.update_status(incident_id, IncidentStatus.APPROVED)
+            await app_repo.record_approval(
+                incident_id=incident_id,
+                decision=payload.decision.value,
+                reviewer=payload.reviewer,
+                notes=payload.notes,
+                action=payload.action,
+            )
+    except Exception:
+        pass
+
+    # Trigger GitHub PR & Slack Notification
+    from app.integrations.github_pr import create_github_pull_request
+    from app.integrations.slack import send_slack_notification
+    pr_result = await create_github_pull_request(incident)
+    if pr_result.get("pr_url"):
+        incident.metadata["github_pr_url"] = pr_result["pr_url"]
+
+    await send_slack_notification(
+        title=f"Incident Approved: {incident.service}",
+        text=f"Approved by {payload.reviewer}. Created GitHub PR: {pr_result.get('pr_url', 'N/A')}",
+        color="#2ea44f",
+    )
+
     return incident
 
 
@@ -176,4 +207,29 @@ async def reject_incident(
         )
 
     incident.status = IncidentStatus.REJECTED
+
+    try:
+        from app.db.engine import AsyncSessionLocal
+        from app.db.repositories import ApprovalRepository, IncidentRepository
+        async with AsyncSessionLocal() as session:
+            inc_repo = IncidentRepository(session)
+            app_repo = ApprovalRepository(session)
+            await inc_repo.update_status(incident_id, IncidentStatus.REJECTED)
+            await app_repo.record_approval(
+                incident_id=incident_id,
+                decision=payload.decision.value,
+                reviewer=payload.reviewer,
+                notes=payload.notes,
+                action="REJECTED",
+            )
+    except Exception:
+        pass
+
+    from app.integrations.slack import send_slack_notification
+    await send_slack_notification(
+        title=f"Incident Rejected: {incident.service}",
+        text=f"Rejected by {payload.reviewer}. Reason: {payload.notes or 'None'}",
+        color="#e94560",
+    )
+
     return incident

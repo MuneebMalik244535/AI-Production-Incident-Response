@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # ── AI Incident Response Platform API ────────────────────────────────────────
+  platform-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: incident_platform_api
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=production
+      - APP_PORT=8000
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/incidents
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Simulated Payment API Microservice ──────────────────────────────────────
+  payment-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: simulated_payment_api
+    ports:
+      - "8001:8000"
+    command: uvicorn app.services.payment_service.main:app --host 0.0.0.0 --port 8000
+    environment:
+      - APP_ENV=simulation
+    restart: unless-stopped
+
+  # ── PostgreSQL Database ──────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: incident_postgres_db
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=incidents
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
