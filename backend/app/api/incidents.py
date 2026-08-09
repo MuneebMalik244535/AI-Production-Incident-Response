@@ -33,13 +33,11 @@ def _now() -> datetime:
 
 
 async def _trigger_investigation(incident_id: str) -> None:
-    """Placeholder for the agent investigation pipeline (Phase 3).
-
-    This will be replaced by the actual agent pipeline call in Phase 3.
-    For now, it simply updates the incident status to INVESTIGATING.
-    """
-    if incident_id in _incidents:
-        _incidents[incident_id].status = IncidentStatus.INVESTIGATING
+    """Execute the multi-agent investigation pipeline in the background."""
+    incident = _incidents.get(incident_id)
+    if incident:
+        from app.agents.pipeline import execute_investigation_pipeline
+        await execute_investigation_pipeline(incident)
 
 
 # ── Endpoints ──────────────────────────────────────────────────────────────────

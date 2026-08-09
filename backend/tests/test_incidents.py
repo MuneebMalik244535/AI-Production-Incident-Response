@@ -206,6 +206,8 @@ class TestApproveIncident:
         sample_approval_payload: dict,
     ) -> None:
         created = client.post("/api/incidents", json=sample_incident_payload).json()
+        from app.api.incidents import _incidents
+        _incidents[created["id"]].status = "RECEIVED"
 
         response = client.post(
             f"/api/incidents/{created['id']}/approve",
