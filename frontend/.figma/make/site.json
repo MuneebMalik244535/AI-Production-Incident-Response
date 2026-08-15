@@ -1,0 +1,10 @@
+{
+  "description": "Automates production incident triage with AI agents to reduce downtime, enabling rapid root cause analysis and fix approvals for enterprise teams.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

@@ -91,6 +91,22 @@ def create_app() -> FastAPI:
             environment=settings.app_env,
         )
 
+    # ── Prometheus Metrics ─────────────────────────────────────────────────
+    from fastapi.responses import PlainTextResponse
+    from app.middleware.metrics import metrics_collector
+
+    @app.get(
+        "/metrics",
+        response_class=PlainTextResponse,
+        tags=["system"],
+        summary="Prometheus metrics exposition",
+    )
+    async def metrics() -> PlainTextResponse:
+        return PlainTextResponse(
+            content=metrics_collector.export_prometheus(),
+            media_type="text/plain; version=0.0.4; charset=utf-8",
+        )
+
     return app
 
 

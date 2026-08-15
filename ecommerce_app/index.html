@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Apex Store — Modern E-Commerce Target App</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0B0F19;
+      --card-bg: rgba(15, 23, 42, 0.75);
+      --border: rgba(255, 255, 255, 0.1);
+      --primary: #6366F1;
+      --primary-hover: #4F46E5;
+      --danger: #EF4444;
+      --success: #10B981;
+      --text: #F8FAFC;
+      --text-muted: #94A3B8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: rgba(15, 23, 42, 0.9);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 18px 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+    .brand-icon {
+      width: 38px;
+      height: 38px;
+      background: linear-gradient(135deg, #6366F1, #8B5CF6);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+
+    .badge {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: var(--success);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .badge-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--success);
+      border-radius: 50%;
+      box-shadow: 0 0 10px var(--success);
+    }
+
+    .hero-banner {
+      background: linear-gradient(180deg, rgba(99, 102, 241, 0.1) 0%, rgba(11, 15, 25, 0) 100%);
+      padding: 40px;
+      text-align: center;
+      border-bottom: 1px solid var(--border);
+    }
+    .hero-banner h1 { font-size: 32px; font-weight: 800; margin-bottom: 10px; }
+    .hero-banner p { color: var(--text-muted); max-width: 600px; margin: 0 auto; font-size: 14px; }
+
+    main {
+      flex: 1;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 40px 20px;
+      width: 100%;
+    }
+
+    .controls-panel {
+      background: rgba(239, 68, 68, 0.08);
+      border: 1px solid rgba(239, 68, 68, 0.25);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 40px;
+    }
+    .controls-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .controls-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #F87171;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-group { display: flex; gap: 12px; flex-wrap: wrap; }
+
+    .btn {
+      padding: 12px 20px;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #FCA5A5;
+    }
+    .btn-danger:hover {
+      background: rgba(239, 68, 68, 0.35);
+      transform: translateY(-2px);
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+    }
+    .btn-primary:hover {
+      background: var(--primary-hover);
+      transform: translateY(-2px);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 24px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      transition: all 0.3s ease;
+    }
+    .card:hover {
+      border-color: rgba(99, 102, 241, 0.4);
+      transform: translateY(-4px);
+      box-shadow: 0 12px 30px rgba(0,0,0,0.5);
+    }
+    .card-img {
+      height: 180px;
+      background: #1E293B;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 48px;
+    }
+    .card-body { padding: 20px; }
+    .card-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+    .card-price { font-size: 18px; font-weight: 800; color: var(--primary); margin-bottom: 16px; }
+
+    #log-console {
+      margin-top: 40px;
+      background: #020617;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      height: 160px;
+      overflow-y: auto;
+    }
+    .log-line { margin-bottom: 6px; }
+    .log-err { color: var(--danger); }
+    .log-succ { color: var(--success); }
+    .log-info { color: var(--text-muted); }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <div class="brand-icon">🛒</div>
+      <div>Apex E-Commerce Store</div>
+    </div>
+    <div class="badge">
+      <div class="badge-dot"></div>
+      Target Service Live (Port 3000)
+    </div>
+  </header>
+
+  <div class="hero-banner">
+    <h1>Autonomous Incident Response Demo Store</h1>
+    <p>Simulate real-world customer checkout outages and watch the AI Platform investigate & open GitHub PRs automatically.</p>
+  </div>
+
+  <main>
+    <!-- Chaos Controls Panel -->
+    <div class="controls-panel">
+      <div class="controls-header">
+        <div class="controls-title">⚡ Live Outage Simulator (Triggers AI Platform)</div>
+        <div style="font-size: 12px; color: #94A3B8;">Targeting AI Platform at http://localhost:8000</div>
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-danger" onclick="triggerOutage('db')">💥 Inject DB Pool Exhaustion</button>
+        <button class="btn btn-danger" onclick="triggerOutage('api')">💥 Inject Payment Gateway 500 Spike</button>
+        <button class="btn btn-danger" onclick="triggerOutage('auth')">💥 Inject Auth Token Expiry</button>
+      </div>
+    </div>
+
+    <!-- Products Grid -->
+    <h2 style="font-size: 20px; font-weight: 700; margin-bottom: 20px;">Featured Electronics</h2>
+    <div class="grid">
+      <div class="card">
+        <div class="card-img">🎧</div>
+        <div class="card-body">
+          <div class="card-title">Wireless ANC Headphones</div>
+          <div class="card-price">$249.99</div>
+          <button class="btn btn-primary" style="width: 100%; justify-content: center;" onclick="buyNow('Wireless ANC Headphones')">Buy Now / Checkout</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-img">⌨️</div>
+        <div class="card-body">
+          <div class="card-title">Mechanical RGB Keyboard</div>
+          <div class="card-price">$129.99</div>
+          <button class="btn btn-primary" style="width: 100%; justify-content: center;" onclick="buyNow('Mechanical RGB Keyboard')">Buy Now / Checkout</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-img">⌚</div>
+        <div class="card-body">
+          <div class="card-title">Ultra Smart Watch Pro</div>
+          <div class="card-price">$399.99</div>
+          <button class="btn btn-primary" style="width: 100%; justify-content: center;" onclick="buyNow('Ultra Smart Watch Pro')">Buy Now / Checkout</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-img">💻</div>
+        <div class="card-body">
+          <div class="card-title">2TB NVMe PCIe 4.0 SSD</div>
+          <div class="card-price">$179.99</div>
+          <button class="btn btn-primary" style="width: 100%; justify-content: center;" onclick="buyNow('2TB NVMe SSD')">Buy Now / Checkout</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Log Console -->
+    <div id="log-console">
+      <div class="log-line log-info">[SYSTEM] Apex E-Commerce Store initialized on Port 3000.</div>
+      <div class="log-line log-info">[SYSTEM] Ready to process transactions or receive outage simulation triggers.</div>
+    </div>
+  </main>
+
+  <script>
+    const AI_PLATFORM_URL = "http://localhost:8000/api/incidents";
+
+    function log(msg, type = "info") {
+      const consoleEl = document.getElementById("log-console");
+      const line = document.createElement("div");
+      line.className = `log-line log-${type}`;
+      line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      consoleEl.appendChild(line);
+      consoleEl.scrollTop = consoleEl.scrollHeight;
+    }
+
+    async function buyNow(productName) {
+      log(`Processing checkout for '${productName}'...`, "info");
+      try {
+        const res = await fetch("http://localhost:5000/checkout", { method: "POST" });
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.detail || "Checkout Failed");
+        }
+        log(`✅ Checkout SUCCESS for '${productName}'! Order #ORD-${Math.floor(Math.random()*90000+10000)}`, "succ");
+        alert(`🎉 Order Confirmed! Thank you for purchasing ${productName}.`);
+      } catch (err) {
+        log(`❌ CHECKOUT ERROR: ${err.message}`, "err");
+        log(`📡 Dispatching Error Webhook to AI Incident Platform (http://localhost:8000)...`, "err");
+        
+        // Dispatch error to AI Incident Response Platform
+        await sendWebhookToAIPlatform("ecommerce-checkout-api", err.message, "CRITICAL");
+      }
+    }
+
+    async function triggerOutage(errorType) {
+      log(`💥 Triggering Outage '${errorType.toUpperCase()}' on Target E-Commerce App...`, "err");
+      try {
+        const res = await fetch(`http://localhost:5000/trigger-outage?error_type=${errorType}`, { method: "POST" });
+        const data = await res.json();
+        log(`📡 WEBHOOK DISPATCHED to AI Incident Platform! Status: ${data.webhook_status}`, "succ");
+        alert(`🚨 Outage Injected! Webhook sent to AI Incident Platform.\nCheck the AI Dashboard at http://localhost:8443`);
+      } catch (err) {
+        log(`❌ Failed to contact Target App API: ${err.message}`, "err");
+      }
+    }
+
+    async function sendWebhookToAIPlatform(service, error, severity) {
+      try {
+        const res = await fetch(AI_PLATFORM_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            service: service,
+            error: error,
+            severity: severity,
+            metadata: { source: "ecommerce_app_frontend", timestamp: new Date().toISOString() }
+          })
+        });
+        if (res.ok) {
+          log(`✅ AI Platform received incident report! AI Agents investigating...`, "succ");
+        }
+      } catch (e) {
+        log(`⚠️ Could not reach AI Platform at ${AI_PLATFORM_URL}: ${e.message}`, "err");
+      }
+    }
+  </script>
+</body>
+</html>

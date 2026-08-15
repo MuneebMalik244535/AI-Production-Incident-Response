@@ -37,6 +37,12 @@ htmlcov/
 logs/
 *.log
 
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
 # Node (for future frontend)
 node_modules/
 .next/
+dist/

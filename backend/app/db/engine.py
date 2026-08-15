@@ -15,10 +15,17 @@ logger = logging.getLogger("incident-platform.db")
 # Determine async connection string
 def get_async_db_url() -> str:
     url = settings.database_url
-    if url.startswith("sqlite://") and not url.startswith("sqlite+aiosqlite://"):
+    if "postgresql" in url:
+        try:
+            import asyncpg  # check if driver available
+            if not url.startswith("postgresql+asyncpg://"):
+                url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        except ImportError:
+            # Fallback to local SQLite when asyncpg postgres driver is not installed
+            logger.warning("asyncpg not installed, falling back to SQLite database.")
+            url = "sqlite+aiosqlite:///./incidents.db"
+    elif url.startswith("sqlite://") and not url.startswith("sqlite+aiosqlite://"):
         url = url.replace("sqlite://", "sqlite+aiosqlite://", 1)
-    elif url.startswith("postgresql://") and not url.startswith("postgresql+asyncpg://"):
-        url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
     return url
 
 

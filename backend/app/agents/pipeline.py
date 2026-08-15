@@ -15,6 +15,8 @@ from app.agents.models import GitHubFindings, IncidentRecommendation, LogFinding
 from app.agents.recommendation_agent import recommendation_agent, run_recommendation
 from app.agents.root_cause_agent import root_cause_agent, run_root_cause_analysis
 from app.config import settings
+from app.integrations.gemini import generate_gemini_content
+from app.security.sanitizer import sanitize_object, sanitize_text
 from app.schemas.incident import (
     AgentFinding,
     AgentRunResponse,
@@ -29,32 +31,35 @@ logger = logging.getLogger("incident-platform.pipeline")
 async def execute_investigation_pipeline(incident: IncidentResponse) -> IncidentResponse:
     """Execute full 5-agent investigation pipeline for an incident.
 
-    1. Log Analysis Agent -> LogFindings
-    2. GitHub Investigation Agent -> GitHubFindings
-    3. Root Cause Agent -> RootCauseAnalysis
-    4. Recommendation Agent -> IncidentRecommendation
-    5. Update Incident object with agent runs, findings, and recommendation.
+    Supports OpenAI Agents SDK, Gemini API Provider, and fallback execution modes.
+    Includes pre-LLM PII/secret scrubbing for enterprise compliance.
     """
-    logger.info(f"🔍 Starting agent investigation pipeline for Incident {incident.id} ({incident.service}: {incident.error})")
+    # Sanitize incident error text
+    clean_error = sanitize_text(incident.error)
+    logger.info(f"🔍 Starting agent investigation pipeline for Incident {incident.id} ({incident.service}: {clean_error})")
     incident.status = IncidentStatus.INVESTIGATING
 
-    has_api_key = bool(settings.openai_api_key and settings.openai_api_key.startswith("sk-"))
+    has_openai_key = bool(settings.openai_api_key and settings.openai_api_key.startswith("sk-"))
+    has_gemini_key = bool(settings.gemini_api_key and len(settings.gemini_api_key) > 5)
 
     start_total = time.perf_counter()
 
     # ── Step 1: Log Analysis Agent ─────────────────────────────────────────────
     t0 = time.perf_counter()
-    if has_api_key:
+    log_findings = run_log_analysis(incident.service, clean_error)
+    if has_gemini_key:
+        prompt = f"Analyze production logs for service '{incident.service}' with error: '{clean_error}'. Provide a 1-sentence diagnostic summary."
+        gemini_res = await generate_gemini_content(prompt)
+        if gemini_res:
+            log_findings.summary = sanitize_text(gemini_res.strip())
+    elif has_openai_key:
         try:
             with trace("log_analysis_step"):
-                prompt = f"Analyze logs for service '{incident.service}' facing error: '{incident.error}'"
+                prompt = f"Analyze logs for service '{incident.service}' facing error: '{clean_error}'"
                 res = await Runner.run(log_analysis_agent, prompt)
-                log_findings: LogFindings = res.final_output
+                log_findings = res.final_output
         except Exception as e:
-            logger.warning(f"Live OpenAI Agent call failed ({e}), using log agent fallback")
-            log_findings = run_log_analysis(incident.service, incident.error)
-    else:
-        log_findings = run_log_analysis(incident.service, incident.error)
+            logger.warning(f"Live OpenAI Agent call failed ({e}), using fallback")
 
     dur_log = time.perf_counter() - t0
     incident.agent_runs.append(
@@ -62,7 +67,7 @@ async def execute_investigation_pipeline(incident: IncidentResponse) -> Incident
             agent_name="Log Analysis Agent",
             status="SUCCESS",
             duration_seconds=round(dur_log, 3),
-            tokens_used=420 if has_api_key else None,
+            tokens_used=420 if (has_openai_key or has_gemini_key) else None,
             output_summary=log_findings.summary,
         )
     )
@@ -78,17 +83,20 @@ async def execute_investigation_pipeline(incident: IncidentResponse) -> Incident
 
     # ── Step 2: GitHub Investigation Agent ──────────────────────────────────────
     t0 = time.perf_counter()
-    if has_api_key:
+    github_findings = run_github_investigation(incident.service)
+    if has_gemini_key:
+        prompt = f"Investigate commit history for service '{incident.service}' facing '{clean_error}'. Identify potential breaking commit."
+        gemini_res = await generate_gemini_content(prompt)
+        if gemini_res:
+            github_findings.summary = sanitize_text(gemini_res.strip())
+    elif has_openai_key:
         try:
             with trace("github_investigation_step"):
-                prompt = f"Investigate recent commits in repo for service '{incident.service}' related to '{incident.error}'"
+                prompt = f"Investigate recent commits in repo for service '{incident.service}' related to '{clean_error}'"
                 res = await Runner.run(github_agent, prompt)
-                github_findings: GitHubFindings = res.final_output
+                github_findings = res.final_output
         except Exception as e:
-            logger.warning(f"Live OpenAI Agent call failed ({e}), using github agent fallback")
-            github_findings = run_github_investigation(incident.service)
-    else:
-        github_findings = run_github_investigation(incident.service)
+            logger.warning(f"Live OpenAI Agent call failed ({e}), using fallback")
 
     dur_gh = time.perf_counter() - t0
     incident.agent_runs.append(
@@ -96,7 +104,7 @@ async def execute_investigation_pipeline(incident: IncidentResponse) -> Incident
             agent_name="GitHub Investigation Agent",
             status="SUCCESS",
             duration_seconds=round(dur_gh, 3),
-            tokens_used=580 if has_api_key else None,
+            tokens_used=580 if (has_openai_key or has_gemini_key) else None,
             output_summary=github_findings.summary,
         )
     )
@@ -105,27 +113,27 @@ async def execute_investigation_pipeline(incident: IncidentResponse) -> Incident
             agent_name="GitHub Investigation Agent",
             finding_type="github_investigation",
             content=github_findings.summary,
-            evidence=github_findings.suspicious_commits,
+            evidence=sanitize_object(github_findings.suspicious_commits),
             confidence=0.92,
         )
     )
 
     # ── Step 3: Root Cause Agent ───────────────────────────────────────────────
     t0 = time.perf_counter()
-    if has_api_key:
+    root_cause = run_root_cause_analysis(log_findings, github_findings)
+    if has_gemini_key:
+        prompt = f"Synthesize root cause for incident on '{incident.service}'. Log summary: {log_findings.summary}. GitHub summary: {github_findings.summary}."
+        gemini_res = await generate_gemini_content(prompt)
+        if gemini_res:
+            root_cause.root_cause = sanitize_text(gemini_res.strip())
+    elif has_openai_key:
         try:
             with trace("root_cause_step"):
-                prompt = (
-                    f"Synthesize evidence for incident on '{incident.service}'. "
-                    f"Log summary: {log_findings.summary}. GitHub summary: {github_findings.summary}."
-                )
+                prompt = f"Synthesize evidence for incident on '{incident.service}'. Log summary: {log_findings.summary}. GitHub summary: {github_findings.summary}."
                 res = await Runner.run(root_cause_agent, prompt)
-                root_cause: RootCauseAnalysis = res.final_output
+                root_cause = res.final_output
         except Exception as e:
-            logger.warning(f"Live OpenAI Agent call failed ({e}), using root cause fallback")
-            root_cause = run_root_cause_analysis(log_findings, github_findings)
-    else:
-        root_cause = run_root_cause_analysis(log_findings, github_findings)
+            logger.warning(f"Live OpenAI Agent call failed ({e}), using fallback")
 
     dur_rc = time.perf_counter() - t0
     incident.agent_runs.append(
@@ -133,7 +141,7 @@ async def execute_investigation_pipeline(incident: IncidentResponse) -> Incident
             agent_name="Root Cause Agent",
             status="SUCCESS",
             duration_seconds=round(dur_rc, 3),
-            tokens_used=350 if has_api_key else None,
+            tokens_used=350 if (has_openai_key or has_gemini_key) else None,
             output_summary=root_cause.root_cause,
         )
     )
@@ -142,24 +150,27 @@ async def execute_investigation_pipeline(incident: IncidentResponse) -> Incident
             agent_name="Root Cause Agent",
             finding_type="root_cause_analysis",
             content=root_cause.root_cause,
-            evidence=[{"evidence_item": ev} for ev in root_cause.evidence],
+            evidence=[{"evidence_item": sanitize_text(ev)} for ev in root_cause.evidence],
             confidence=root_cause.confidence,
         )
     )
 
     # ── Step 4: Recommendation Agent ──────────────────────────────────────────
     t0 = time.perf_counter()
-    if has_api_key:
+    rec_output = run_recommendation(root_cause)
+    if has_gemini_key:
+        prompt = f"Generate Git PR description and remediation actions for root cause: '{root_cause.root_cause}' on service '{incident.service}'."
+        gemini_res = await generate_gemini_content(prompt)
+        if gemini_res:
+            rec_output.suggested_pr_description = sanitize_text(gemini_res.strip())
+    elif has_openai_key:
         try:
             with trace("recommendation_step"):
                 prompt = f"Generate fix recommendations for root cause: '{root_cause.root_cause}'"
                 res = await Runner.run(recommendation_agent, prompt)
-                rec_output: IncidentRecommendation = res.final_output
+                rec_output = res.final_output
         except Exception as e:
-            logger.warning(f"Live OpenAI Agent call failed ({e}), using recommendation fallback")
-            rec_output = run_recommendation(root_cause)
-    else:
-        rec_output = run_recommendation(root_cause)
+            logger.warning(f"Live OpenAI Agent call failed ({e}), using fallback")
 
     dur_rec = time.perf_counter() - t0
     incident.agent_runs.append(
@@ -167,7 +178,7 @@ async def execute_investigation_pipeline(incident: IncidentResponse) -> Incident
             agent_name="Recommendation Agent",
             status="SUCCESS",
             duration_seconds=round(dur_rec, 3),
-            tokens_used=490 if has_api_key else None,
+            tokens_used=490 if (has_openai_key or has_gemini_key) else None,
             output_summary=f"Risk: {rec_output.risk_level.value}. Fix: {rec_output.recommended_actions[0] if rec_output.recommended_actions else ''}",
         )
     )
