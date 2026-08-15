@@ -6,7 +6,16 @@ import logging
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    HTTPException,
+    Query,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
+from fastapi.responses import StreamingResponse
 
 from app.middleware.metrics import metrics_collector
 from app.schemas.incident import (
@@ -26,12 +35,14 @@ from app.schemas.webhooks import (
     PrometheusAlertmanagerPayload,
 )
 from app.security.sanitizer import sanitize_object, sanitize_text
+from app.services.incident_memory import HistoricalIncident, search_past_incidents
 from app.services.postmortem import PostMortemReport, postmortem_generator
 from app.services.remediation_engine import (
     RemediationActionType,
     RemediationRequest,
     remediation_engine,
 )
+from app.services.streaming import publish_incident_event, stream_manager
 
 logger = logging.getLogger("incident-platform.api")
 router = APIRouter(prefix="/api/incidents", tags=["incidents"])
@@ -430,6 +441,23 @@ async def list_incidents() -> list[IncidentListItem]:
     return sorted(items, key=lambda x: x.created_at, reverse=True)
 
 
+# ── Incident Memory & Vector RAG Endpoint ──────────────────────────────────────
+
+
+@router.get(
+    "/memory/search",
+    response_model=list[HistoricalIncident],
+    summary="Search historical incident vector memory and runbooks",
+)
+async def search_memory(
+    service: str = Query("", description="Target microservice name"),
+    query: str = Query("", description="Error message or symptom keyword"),
+    limit: int = Query(3, ge=1, le=10),
+) -> list[HistoricalIncident]:
+    """Retrieve similar historical incidents and verified resolutions from memory."""
+    return search_past_incidents(service=service, query=query, limit=limit)
+
+
 @router.get(
     "/{incident_id}",
     response_model=IncidentResponse,
@@ -616,3 +644,39 @@ async def get_incident_postmortem(incident_id: str) -> PostMortemReport:
     """Compile a full SRE blameless post-mortem with root cause analysis, timeline, and action items."""
     incident = await get_incident(incident_id)
     return postmortem_generator.generate(incident)
+
+
+# ── Real-Time Streaming Endpoints (WebSockets & SSE) ───────────────────────────
+
+
+@router.websocket("/{incident_id}/ws")
+async def incident_websocket(websocket: WebSocket, incident_id: str) -> None:
+    """Live bidirectional WebSocket feed for agent execution events and findings."""
+    await stream_manager.connect_websocket(websocket, incident_id)
+    try:
+        while True:
+            # Keep socket open and receive any client ping/acks
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        stream_manager.disconnect_websocket(websocket, incident_id)
+    except Exception as e:
+        logger.debug(f"WebSocket error: {e}")
+        stream_manager.disconnect_websocket(websocket, incident_id)
+
+
+@router.get(
+    "/{incident_id}/events",
+    summary="Server-Sent Events (SSE) stream for live agent execution",
+)
+async def incident_events_stream(incident_id: str) -> StreamingResponse:
+    """Stream real-time agent execution events via Server-Sent Events (SSE)."""
+    return StreamingResponse(
+        stream_manager.sse_event_stream(incident_id),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
